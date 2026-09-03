@@ -1,7 +1,6 @@
 const BLYNK_AUTH_TOKEN = "D6Zu_NsTwvhZ7toNrjtWZbCZeMKnBkTP";
 const BLYNK_SERVER = "sgp1.blynk.cloud";
 
-// Utility function to check real-time hardware status
 async function checkDeviceStatus() {
     try {
         const url = `https://${BLYNK_SERVER}/external/api/isHardwareConnected?token=${BLYNK_AUTH_TOKEN}`;
@@ -14,7 +13,6 @@ async function checkDeviceStatus() {
     }
 }
 
-// Utility function to fetch individual virtual pin values
 async function fetchPin(pin) {
     try {
         const url = `https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_AUTH_TOKEN}&${pin}`;
@@ -28,7 +26,7 @@ async function fetchPin(pin) {
     }
 }
 
-// Function to dynamically update card color classes based on thresholds
+// Controls 3-Color Segment Status
 function setCardStatus(valueId, numValue, safeLimit, warningLimit, isInverse = false) {
     const element = document.getElementById(valueId);
     if (!element) return;
@@ -36,13 +34,12 @@ function setCardStatus(valueId, numValue, safeLimit, warningLimit, isInverse = f
     const card = element.closest('.card');
     if (!card) return;
 
-    // Reset current color classes
     card.classList.remove("status-safe", "status-warning", "status-danger");
 
     if (numValue === null || isNaN(numValue)) return;
 
     if (!isInverse) {
-        // Standard Metric (Higher value = Higher Danger)
+        // High Value = High Danger
         if (numValue <= safeLimit) {
             card.classList.add("status-safe");      // Green
         } else if (numValue <= warningLimit) {
@@ -51,13 +48,13 @@ function setCardStatus(valueId, numValue, safeLimit, warningLimit, isInverse = f
             card.classList.add("status-danger");    // Red
         }
     } else {
-        // Distance Metric (Higher Distance = Empty Container = High Danger)
+        // High Distance = Low Feed/Water Level = High Danger
         if (numValue <= safeLimit) {
-            card.classList.add("status-safe");      // Full / Normal (Green)
+            card.classList.add("status-safe");      // Green (Full)
         } else if (numValue <= warningLimit) {
-            card.classList.add("status-warning");   // Getting Low (Orange)
+            card.classList.add("status-warning");   // Orange (Low)
         } else {
-            card.classList.add("status-danger");    // Empty / Critically Low (Red)
+            card.classList.add("status-danger");    // Red (Empty)
         }
     }
 }
@@ -70,7 +67,6 @@ async function updateDashboard() {
         statusBadge.textContent = "ONLINE";
         statusBadge.className = "badge online";
 
-        // Fetch V0 through V4 in parallel
         const [temp, hum, gas, feed, water] = await Promise.all([
             fetchPin("v0"),
             fetchPin("v1"),
@@ -79,17 +75,17 @@ async function updateDashboard() {
             fetchPin("v4")
         ]);
 
-        // Process Temperature
+        // Temperature (Green <= 28°C | Orange <= 32°C | Red > 32°C)
         const tempVal = (temp && !isNaN(temp)) ? parseFloat(temp) : null;
         document.getElementById("val-temp").innerText = tempVal !== null ? tempVal.toFixed(1) : "--";
-        setCardStatus("val-temp", tempVal, 28, 32); // Safe <= 28°C | Warning <= 32°C | Danger > 32°C
+        setCardStatus("val-temp", tempVal, 28, 32);
 
-        // Process Humidity
+        // Humidity (Green <= 65% | Orange <= 75% | Red > 75%)
         const humVal = (hum && !isNaN(hum)) ? parseFloat(hum) : null;
         document.getElementById("val-hum").innerText = humVal !== null ? humVal.toFixed(1) : "--";
-        setCardStatus("val-hum", humVal, 65, 75); // Safe <= 65% | Warning <= 75% | Danger > 75%
+        setCardStatus("val-hum", humVal, 65, 75);
 
-        // Process Gas Level (Convert raw ADC to PPM if raw value received)
+        // Gas Level (Green <= 400 PPM | Orange <= 600 PPM | Red > 600 PPM)
         let gasVal = null;
         if (gas && !isNaN(gas)) {
             const rawGas = parseInt(gas);
@@ -98,24 +94,22 @@ async function updateDashboard() {
         } else {
             document.getElementById("val-gas").innerText = "--";
         }
-        setCardStatus("val-gas", gasVal, 400, 600); // Safe <= 400 PPM | Warning <= 600 PPM | Danger > 600 PPM
+        setCardStatus("val-gas", gasVal, 400, 600);
 
-        // Process Feed Distance
+        // Feed Distance (Green <= 15cm | Orange <= 35cm | Red > 35cm)
         const feedVal = (feed && !isNaN(feed)) ? parseInt(feed) : null;
         document.getElementById("val-feed").innerText = feedVal !== null ? feedVal : "--";
-        setCardStatus("val-feed", feedVal, 15, 35, true); // Full <= 15cm | Low <= 35cm | Empty > 35cm
+        setCardStatus("val-feed", feedVal, 15, 35, true);
 
-        // Process Water Distance
+        // Water Distance (Green <= 10cm | Orange <= 25cm | Red > 25cm)
         const waterVal = (water && !isNaN(water)) ? parseInt(water) : null;
         document.getElementById("val-water").innerText = waterVal !== null ? waterVal : "--";
-        setCardStatus("val-water", waterVal, 10, 25, true); // Full <= 10cm | Low <= 25cm | Empty > 25cm
+        setCardStatus("val-water", waterVal, 10, 25, true);
 
     } else {
-        // Device is OFFLINE
         statusBadge.textContent = "OFFLINE";
         statusBadge.className = "badge offline";
 
-        // Reset display values and colors
         const ids = ["val-temp", "val-hum", "val-gas", "val-feed", "val-water"];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -128,6 +122,5 @@ async function updateDashboard() {
     }
 }
 
-// Initial Run and 3-second Polling Loop
 updateDashboard();
 setInterval(updateDashboard, 3000);
